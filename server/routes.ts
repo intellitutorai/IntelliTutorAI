@@ -1,26 +1,43 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertChatSchema, insertMessageSchema } from "@shared/schema";
+import connectDB from "./db-mongo";
+import User from "./models/User";
+import Chat from "./models/Chat";
+import { auth, adminAuth, type AuthRequest } from "./middleware/auth";
+import jwt from 'jsonwebtoken';
 import { z } from "zod";
 
-async function callOpenRouter(messages: Array<{role: string, content: string}>) {
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || process.env.API_KEY;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Validation schemas
+const registerSchema = z.object({
+  username: z.string().min(3).max(30),
+  email: z.string().email(),
+  password: z.string().min(4),
+  role: z.enum(['teacher', 'student']),
+  institution: z.string().min(1)
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
+});
+
+async function callOpenAI(messages: Array<{role: string, content: string}>) {
+  const apiKey = process.env.OPENAI_API_KEY;
   
   if (!apiKey) {
-    throw new Error("OpenRouter API key not configured");
+    throw new Error("OpenAI API key not configured");
   }
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-Title": "AI Chat App"
+      "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "anthropic/claude-3.5-sonnet",
+      model: "gpt-4o",
       messages: messages,
       temperature: 0.7,
       max_tokens: 1000,
@@ -29,7 +46,7 @@ async function callOpenRouter(messages: Array<{role: string, content: string}>) 
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`OpenRouter API error: ${response.status} ${error}`);
+    throw new Error(`OpenAI API error: ${response.status} ${error}`);
   }
 
   const data = await response.json();
@@ -37,26 +54,97 @@ async function callOpenRouter(messages: Array<{role: string, content: string}>) 
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Connect to MongoDB
+  await connectDB();
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      const validatedData = registerSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await User.findOne({ 
+        $or: [
+          { email: validatedData.email },
+          { username: validatedData.username }
+        ]
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({ message: 'User already exists' });
+      }
+
+      // Create new user
+      const user = new User(validatedData);
+      await user.save();
+
+      // Generate JWT token
+      const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
+
+      res.status(201).json({
+        token,
+        user: user.toJSON()
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const validatedData = loginSchema.parse(req.body);
+      
+      // Find user by email
+      const user = await User.findOne({ email: validatedData.email });
+      if (!user) {
+        return res.status(400).json({ message: 'Invalid credentials' });
+      }
+
+      // Check password
+      const isMatch = await user.comparePassword(validatedData.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid credentials' });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
+
+      res.json({
+        token,
+        user: user.toJSON()
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.get('/api/auth/user', auth, async (req: AuthRequest, res) => {
+    try {
+      res.json(req.user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
+  app.post('/api/auth/logout', (req, res) => {
+    res.json({ message: 'Logged out successfully' });
+  });
+
   // Chat routes
-  app.get('/api/chats', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chats', auth, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const chats = await storage.getUserChats(userId);
+      const chats = await Chat.find({ userId: req.user._id })
+        .sort({ updatedAt: -1 })
+        .select('title createdAt updatedAt');
       res.json(chats);
     } catch (error) {
       console.error("Error fetching chats:", error);
@@ -64,11 +152,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/chats', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chats', auth, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const chatData = insertChatSchema.parse({ ...req.body, userId });
-      const chat = await storage.createChat(chatData);
+      const chat = new Chat({
+        userId: req.user._id,
+        title: req.body.title || 'New Chat',
+        messages: []
+      });
+      await chat.save();
       res.json(chat);
     } catch (error) {
       console.error("Error creating chat:", error);
@@ -76,77 +167,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/chats/:chatId/messages', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chats/:chatId/messages', auth, async (req: AuthRequest, res) => {
     try {
-      const chatId = parseInt(req.params.chatId);
-      const chat = await storage.getChat(chatId);
+      const chat = await Chat.findOne({
+        _id: req.params.chatId,
+        userId: req.user._id
+      });
       
-      if (!chat || chat.userId !== req.user.claims.sub) {
+      if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
       
-      const messages = await storage.getChatMessages(chatId);
-      res.json(messages);
+      res.json(chat.messages);
     } catch (error) {
       console.error("Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
     }
   });
 
-  app.post('/api/chats/:chatId/messages', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chats/:chatId/messages', auth, async (req: AuthRequest, res) => {
     try {
-      const chatId = parseInt(req.params.chatId);
-      const chat = await storage.getChat(chatId);
+      const chat = await Chat.findOne({
+        _id: req.params.chatId,
+        userId: req.user._id
+      });
       
-      if (!chat || chat.userId !== req.user.claims.sub) {
+      if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
 
-      const messageData = insertMessageSchema.parse({
-        ...req.body,
-        chatId,
-        role: 'user'
-      });
-
-      // Save user message
-      const userMessage = await storage.createMessage(messageData);
-
-      // Get chat history for context
-      const chatMessages = await storage.getChatMessages(chatId);
-      const openRouterMessages = chatMessages.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content
-      }));
+      // Add user message
+      const userMessage = {
+        content: req.body.content,
+        role: 'user' as const
+      };
+      
+      chat.messages.push(userMessage);
+      await chat.save();
 
       try {
+        // Prepare messages for AI with educational context
+        const aiMessages = chat.messages.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+
+        // Add educational context
+        const systemPrompt = {
+          role: 'system',
+          content: 'You are an educational AI assistant. Provide clear, helpful explanations suitable for students and teachers. Focus on learning and understanding.'
+        };
+
         // Get AI response
-        const aiResponse = await callOpenRouter(openRouterMessages);
+        const aiResponse = await callOpenAI([systemPrompt, ...aiMessages]);
 
-        // Save AI response
-        const aiMessage = await storage.createMessage({
-          chatId,
+        // Add AI response to chat
+        const aiMessage = {
           content: aiResponse,
-          role: 'assistant'
-        });
-
+          role: 'assistant' as const
+        };
+        
+        chat.messages.push(aiMessage);
+        
         // Update chat title if this is the first user message
-        if (chatMessages.length === 1) {
+        if (chat.messages.length === 2) {
           const title = req.body.content.length > 50 
             ? req.body.content.substring(0, 50) + "..."
             : req.body.content;
-          await storage.updateChatTitle(chatId, title);
+          chat.title = title;
         }
+        
+        await chat.save();
 
         res.json({ userMessage, aiMessage });
       } catch (aiError) {
         console.error("Error getting AI response:", aiError);
         
-        // Save error message
-        const errorMessage = await storage.createMessage({
-          chatId,
+        // Add error message
+        const errorMessage = {
           content: "I apologize, but I'm having trouble connecting to the AI service right now. Please try again later.",
-          role: 'assistant'
-        });
+          role: 'assistant' as const
+        };
+        
+        chat.messages.push(errorMessage);
+        await chat.save();
 
         res.json({ userMessage, aiMessage: errorMessage });
       }
@@ -156,16 +260,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/chats/:chatId', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/chats/:chatId', auth, async (req: AuthRequest, res) => {
     try {
-      const chatId = parseInt(req.params.chatId);
-      const chat = await storage.getChat(chatId);
+      const chat = await Chat.findOneAndDelete({
+        _id: req.params.chatId,
+        userId: req.user._id
+      });
       
-      if (!chat || chat.userId !== req.user.claims.sub) {
+      if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
       
-      await storage.deleteChat(chatId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting chat:", error);
@@ -173,17 +278,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin routes
-  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+  // User profile routes
+  app.put('/api/user/profile', auth, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const currentUser = await storage.getUser(userId);
+      const { username, email, institution, profileImage } = req.body;
       
-      if (!currentUser?.isAdmin) {
-        return res.status(403).json({ message: "Admin access required" });
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user._id,
+        { username, email, institution, profileImage },
+        { new: true, runValidators: true }
+      );
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
       }
       
-      const users = await storage.getAllUsers();
+      res.json(updatedUser);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).json({ message: 'Failed to update profile' });
+    }
+  });
+
+  // Admin routes
+  app.get('/api/admin/users', adminAuth, async (req: AuthRequest, res) => {
+    try {
+      const users = await User.find({}).sort({ createdAt: -1 });
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -191,17 +311,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin stats endpoint
-  app.get('/api/admin/stats', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/admin/users/:userId', adminAuth, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const currentUser = await storage.getUser(userId);
+      const user = await User.findByIdAndDelete(req.params.userId);
       
-      if (!currentUser?.isAdmin) {
-        return res.status(403).json({ message: "Admin access required" });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
       }
       
-      const users = await storage.getAllUsers();
+      // Also delete user's chats
+      await Chat.deleteMany({ userId: req.params.userId });
+      
+      res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // Admin stats endpoint
+  app.get('/api/admin/stats', adminAuth, async (req: AuthRequest, res) => {
+    try {
+      const users = await User.find({});
       const totalUsers = users.length;
       
       // Calculate basic stats
@@ -217,11 +348,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user.createdAt && new Date(user.createdAt) >= weekStart
       ).length;
       
+      const totalChats = await Chat.countDocuments();
+      
       res.json({
         totalUsers,
         activeToday,
         newThisWeek,
-        totalChats: 0, // Would need additional query to calculate
+        totalChats,
+        teacherCount: users.filter(u => u.role === 'teacher').length,
+        studentCount: users.filter(u => u.role === 'student').length,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);

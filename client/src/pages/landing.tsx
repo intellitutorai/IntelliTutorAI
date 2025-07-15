@@ -14,7 +14,7 @@ export default function Landing() {
             </div>
             <h1 className="text-xl font-bold text-slate-800">AI Chat</h1>
           </div>
-          <Button onClick={() => window.location.href = '/api/login'}>
+          <Button onClick={() => window.location.href = '/auth'}>
             Sign In
           </Button>
         </div>
@@ -36,7 +36,7 @@ export default function Landing() {
           <Button 
             size="lg" 
             className="px-8 py-3 text-lg"
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/auth'}
           >
             Get Started
           </Button>
@@ -85,7 +85,7 @@ export default function Landing() {
           </p>
           <Button 
             size="lg" 
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/auth'}
           >
             Sign In to Continue
           </Button>

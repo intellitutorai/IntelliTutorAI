@@ -1,12 +1,16 @@
-# AI Chat Application
+# IntelliTutorAI - Educational AI Chat Application
 
 ## Overview
 
-This is a full-stack AI chat application built with a modern TypeScript stack. The application provides a conversational interface where users can interact with AI through chat conversations. It features user authentication via Replit Auth, persistent chat history, and an admin panel for user management.
+This is a full-stack educational AI chat application built with a modern TypeScript stack. The application provides an intelligent tutoring interface where students and teachers can interact with AI for educational purposes. It features custom user authentication with MongoDB, persistent chat history, admin panel for user management, and specialized educational tools.
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+- Preferred communication style: Simple, everyday language
+- Custom UI colors: Primary #4776E6, Secondary #8E54E9, Light background #f8f9fe
+- Educational focus with specialized prompts and features
+- MongoDB integration for data persistence
+- Custom authentication system with JWT tokens
 
 ## System Architecture
 

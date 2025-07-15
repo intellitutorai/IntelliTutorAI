@@ -2,78 +2,75 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import ChatSidebar from "@/components/chat/ChatSidebar";
-import ChatMessages from "@/components/chat/ChatMessages";
-import ChatInput from "@/components/chat/ChatInput";
+import EnhancedChatSidebar from "@/components/chat/EnhancedChatSidebar";
+import EnhancedChatMessages from "@/components/chat/EnhancedChatMessages";
+import EnhancedChatInput from "@/components/chat/EnhancedChatInput";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut, Menu } from "lucide-react";
+import { Settings, Menu } from "lucide-react";
 import { useLocation } from "wouter";
-import type { Chat, Message } from "@shared/schema";
+
+interface Chat {
+  _id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Message {
+  _id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  createdAt: string;
+}
 
 export default function Home() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
-  const [, navigate] = useLocation();
-  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Redirect to login if not authenticated
+  // Redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !user) {
-      toast({
-        title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 500);
+      navigate("/auth");
       return;
     }
-  }, [user, isLoading, toast]);
+  }, [user, isLoading, navigate]);
 
-  // Fetch user's chats
-  const { data: chats = [], isLoading: chatsLoading } = useQuery({
+  // Redirect to admin if user is admin
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      navigate('/admin');
+    }
+  }, [user, navigate]);
+
+  const { data: chats = [], isLoading: isLoadingChats } = useQuery({
     queryKey: ["/api/chats"],
     enabled: !!user,
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
+      toast({
+        title: "Error",
+        description: "Failed to load chats",
+        variant: "destructive",
+      });
     },
   });
 
-  // Fetch messages for selected chat
-  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  const { data: messages = [], isLoading: isLoadingMessages } = useQuery({
     queryKey: ["/api/chats", selectedChatId, "messages"],
     enabled: !!selectedChatId,
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
+      toast({
+        title: "Error",
+        description: "Failed to load messages",
+        variant: "destructive",
+      });
     },
   });
 
-  // Create new chat mutation
   const createChatMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/chats", {
@@ -83,54 +80,28 @@ export default function Home() {
     },
     onSuccess: (newChat: Chat) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      setSelectedChatId(newChat.id);
+      setSelectedChatId(newChat._id);
     },
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
       toast({
         title: "Error",
-        description: "Failed to create new chat",
+        description: "Failed to create chat",
         variant: "destructive",
       });
     },
   });
 
-  // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ chatId, content }: { chatId: number; content: string }) => {
-      const response = await apiRequest("POST", `/api/chats/${chatId}/messages`, {
+    mutationFn: async (content: string) => {
+      const response = await apiRequest("POST", `/api/chats/${selectedChatId}/messages`, {
         content,
       });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/chats", selectedChatId, "messages"] 
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/chats", selectedChatId, "messages"] });
     },
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
       toast({
         title: "Error",
         description: "Failed to send message",
@@ -139,29 +110,15 @@ export default function Home() {
     },
   });
 
-  // Delete chat mutation
   const deleteChatMutation = useMutation({
-    mutationFn: async (chatId: number) => {
+    mutationFn: async (chatId: string) => {
       await apiRequest("DELETE", `/api/chats/${chatId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      if (selectedChatId && chats.find(c => c.id === selectedChatId)) {
-        setSelectedChatId(null);
-      }
+      setSelectedChatId(null);
     },
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
       toast({
         title: "Error",
         description: "Failed to delete chat",
@@ -174,111 +131,98 @@ export default function Home() {
     createChatMutation.mutate();
   };
 
+  const handleSelectChat = (chatId: string) => {
+    setSelectedChatId(chatId);
+    setIsSidebarOpen(false);
+  };
+
   const handleSendMessage = (content: string) => {
     if (selectedChatId) {
-      sendMessageMutation.mutate({ chatId: selectedChatId, content });
-    } else {
-      // Create new chat first, then send message
-      createChatMutation.mutate();
-      // Note: This is a simplified approach. In a real app, you'd want to chain these operations
-      setTimeout(() => {
-        if (createChatMutation.data) {
-          sendMessageMutation.mutate({ chatId: createChatMutation.data.id, content });
-        }
-      }, 100);
+      sendMessageMutation.mutate(content);
     }
   };
 
-  const handleDeleteChat = (chatId: number) => {
+  const handleDeleteChat = (chatId: string) => {
     deleteChatMutation.mutate(chatId);
   };
 
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="flex h-screen" style={{ backgroundColor: "var(--light-bg)" }}>
+      {/* Mobile sidebar backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className={`w-64 bg-white border-r border-slate-200 flex-col ${sidebarOpen ? 'flex' : 'hidden lg:flex'}`}>
-        <ChatSidebar
+      <div className={`${
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-lg transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:shadow-none`}>
+        <EnhancedChatSidebar
           user={user}
           chats={chats}
           selectedChatId={selectedChatId}
-          onSelectChat={setSelectedChatId}
+          onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={handleDeleteChat}
           isCreatingChat={createChatMutation.isPending}
         />
       </div>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main Chat Area */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Button
               variant="ghost"
               size="sm"
               className="lg:hidden"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => setIsSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="font-medium">AI Assistant</span>
-              <span className="text-sm text-slate-500">Online</span>
-            </div>
+            <h1 className="text-lg font-semibold">
+              {selectedChatId ? "IntelliTutorAI" : "Welcome to IntelliTutorAI"}
+            </h1>
           </div>
           <div className="flex items-center space-x-2">
-            {user?.isAdmin && (
+            {user.role === 'admin' && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/admin")}
+                onClick={() => navigate('/admin')}
               >
-                <Settings className="h-5 w-5" />
+                <Settings className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.location.href = "/api/logout"}
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
           </div>
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-hidden">
-          <ChatMessages
+          <EnhancedChatMessages
             messages={messages}
-            isLoading={messagesLoading || sendMessageMutation.isPending}
+            isLoading={isLoadingMessages || sendMessageMutation.isPending}
             selectedChatId={selectedChatId}
           />
         </div>
 
         {/* Input */}
-        <div className="border-t border-slate-200">
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            disabled={sendMessageMutation.isPending}
-          />
-        </div>
+        <EnhancedChatInput
+          onSendMessage={handleSendMessage}
+          disabled={sendMessageMutation.isPending}
+        />
       </div>
     </div>
   );

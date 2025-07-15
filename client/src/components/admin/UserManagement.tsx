@@ -1,289 +1,265 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { Card, CardContent } from "@/components/ui/card";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Users, UserCheck, UserPlus, MessageSquare, Edit, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Trash2, Search, Filter, Users, UserCheck, UserX } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { User } from "@shared/schema";
+import { User } from "@/hooks/useAuth";
 
 export default function UserManagement() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [filterRole, setFilterRole] = useState<string>("all");
 
-  // Fetch users
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  const { data: users = [], isLoading } = useQuery({
     queryKey: ["/api/admin/users"],
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
       toast({
         title: "Error",
-        description: "Failed to fetch users",
+        description: "Failed to load users",
         variant: "destructive",
       });
     },
   });
 
-  // Fetch stats
   const { data: stats } = useQuery({
     queryKey: ["/api/admin/stats"],
     onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
+      toast({
+        title: "Error",
+        description: "Failed to load statistics",
+        variant: "destructive",
+      });
     },
   });
 
-  // Filter users based on search and filters
-  const filteredUsers = users.filter((user: User) => {
-    const matchesSearch = !searchTerm || 
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesRole = roleFilter === "all" || 
-      (roleFilter === "admin" && user.isAdmin) ||
-      (roleFilter === "user" && !user.isAdmin);
-    
-    // For now, all users are considered active since we don't have a status field
-    const matchesStatus = statusFilter === "all" || statusFilter === "active";
-    
-    return matchesSearch && matchesRole && matchesStatus;
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      await apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    },
   });
+
+  const handleDeleteUser = (userId: string) => {
+    deleteUserMutation.mutate(userId);
+  };
+
+  const filteredUsers = users.filter((user: User) => {
+    const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.institution.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === "all" || user.role === filterRole;
+    return matchesSearch && matchesRole;
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">User Management</h2>
-        <Button>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
-      </div>
-
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600">Total Users</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {stats?.totalUsers || users.length}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600">Active Today</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {stats?.activeToday || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <UserCheck className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600">New This Week</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {stats?.newThisWeek || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <UserPlus className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600">Total Chats</p>
-                <p className="text-2xl font-bold text-slate-800">
-                  {stats?.totalChats || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Teachers</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.teacherCount}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Students</CardTitle>
+              <UserX className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.studentCount}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Chats</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalChats}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Search and Filters */}
+      {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Users className="h-5 w-5" />
+            <span>User Management</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1">
-              <Input
-                placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="All Roles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="user">User</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex space-x-2">
+              <Button
+                variant={filterRole === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterRole("all")}
+              >
+                All
+              </Button>
+              <Button
+                variant={filterRole === "student" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterRole("student")}
+              >
+                Students
+              </Button>
+              <Button
+                variant={filterRole === "teacher" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterRole("teacher")}
+              >
+                Teachers
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Users Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Institution</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Active</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {usersLoading ? (
+                {filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                        <span className="ml-2">Loading users...</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : filteredUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="text-slate-500">
-                        {searchTerm || roleFilter !== "all" || statusFilter !== "all"
-                          ? "No users match your filters"
-                          : "No users found"}
+                      <div className="text-gray-500">
+                        <Users className="h-8 w-8 mx-auto mb-2" />
+                        <p>No users found</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredUsers.map((user: User) => (
-                    <TableRow key={user.id} className="hover:bg-slate-50">
+                    <TableRow key={user._id}>
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.profileImageUrl || undefined} />
+                            <AvatarImage src={user.profileImage} />
                             <AvatarFallback>
-                              {user.firstName?.[0] || user.email?.[0] || "U"}
+                              {user.username[0]?.toUpperCase() || "U"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium text-slate-800">
-                              {user.firstName && user.lastName
-                                ? `${user.firstName} ${user.lastName}`
-                                : user.email}
-                            </p>
-                            <p className="text-sm text-slate-600">@{user.id}</p>
+                            <div className="font-medium">{user.username}</div>
+                            <div className="text-sm text-gray-500">{user.email}</div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-slate-600">{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant={user.isAdmin ? "default" : "secondary"}>
-                          {user.isAdmin ? "Admin" : "User"}
+                        <Badge
+                          variant={user.role === 'admin' ? 'default' : 'secondary'}
+                        >
+                          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{user.institution}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                          {user.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-green-700 border-green-200">
-                          Active
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {user.updatedAt
-                          ? formatDistanceToNow(new Date(user.updatedAt), { addSuffix: true })
-                          : "Never"}
+                        {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}
                       </TableCell>
                       <TableCell>
-                        <div className="flex space-x-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              disabled={user.role === 'admin'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {user.username}? This action cannot be undone and will also delete all their chats.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteUser(user._id)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))
@@ -291,26 +267,6 @@ export default function UserManagement() {
               </TableBody>
             </Table>
           </div>
-          
-          {/* Pagination */}
-          {filteredUsers.length > 0 && (
-            <div className="bg-slate-50 px-4 py-3 flex items-center justify-between border-t border-slate-200">
-              <div className="flex items-center space-x-2 text-sm text-slate-600">
-                <span>Showing {filteredUsers.length} of {users.length} users</span>
-              </div>
-              <div className="flex space-x-1">
-                <Button variant="outline" size="sm" disabled>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" className="bg-primary text-white border-primary">
-                  1
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
