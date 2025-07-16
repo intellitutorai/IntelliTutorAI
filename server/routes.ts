@@ -24,20 +24,45 @@ const loginSchema = z.object({
 });
 
 async function callOpenAI(messages: Array<{role: string, content: string}>) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  // Try OpenRouter API key first, then fall back to OpenAI
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const openAIKey = process.env.OPENAI_API_KEY;
   
-  if (!apiKey) {
-    throw new Error("OpenAI API key not configured");
+  // Determine which API to use based on available keys and key format
+  let apiUrl = "";
+  let apiKey = "";
+  let model = "";
+  
+  if (openRouterKey) {
+    apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+    apiKey = openRouterKey;
+    model = "anthropic/claude-3.5-sonnet";
+  } else if (openAIKey && openAIKey.startsWith('sk-or-v1')) {
+    // This is actually an OpenRouter key stored in OPENAI_API_KEY
+    apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+    apiKey = openAIKey;
+    model = "anthropic/claude-3.5-sonnet";
+  } else if (openAIKey) {
+    // This is a real OpenAI key
+    apiUrl = "https://api.openai.com/v1/chat/completions";
+    apiKey = openAIKey;
+    model = "gpt-4o";
+  } else {
+    throw new Error("No API key configured. Please set either OPENROUTER_API_KEY or OPENAI_API_KEY");
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...(apiUrl.includes('openrouter') && {
+        "HTTP-Referer": "https://intellitutor.ai",
+        "X-Title": "IntelliTutorAI"
+      })
     },
     body: JSON.stringify({
-      model: "gpt-4o",
+      model: model,
       messages: messages,
       temperature: 0.7,
       max_tokens: 1000,
@@ -46,7 +71,7 @@ async function callOpenAI(messages: Array<{role: string, content: string}>) {
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} ${error}`);
+    throw new Error(`AI API error: ${response.status} ${error}`);
   }
 
   const data = await response.json();
