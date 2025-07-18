@@ -34,6 +34,7 @@ export default function AuthPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const registerForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -56,6 +57,7 @@ export default function AuthPage() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
+      setAuthError(null);
       const response = await apiRequest("POST", "/api/auth/register", data);
       return response.json();
     },
@@ -66,9 +68,13 @@ export default function AuthPage() {
         title: "Registration successful",
         description: "Welcome to IntelliTutorAI!",
       });
-      navigate("/");
+      // Add a small delay to ensure token is set
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
     },
     onError: (error: any) => {
+      setAuthError(error.message || "Registration failed. Please try again.");
       toast({
         title: "Registration failed",
         description: error.message || "Please try again",
@@ -79,6 +85,7 @@ export default function AuthPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
+      setAuthError(null);
       const response = await apiRequest("POST", "/api/auth/login", data);
       return response.json();
     },
@@ -89,9 +96,13 @@ export default function AuthPage() {
         title: "Login successful",
         description: "Welcome back!",
       });
-      navigate("/");
+      // Add a small delay to ensure token is set
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
     },
     onError: (error: any) => {
+      setAuthError(error.message || "Invalid credentials. Please check your email and password.");
       toast({
         title: "Login failed",
         description: error.message || "Please check your credentials",
@@ -102,14 +113,16 @@ export default function AuthPage() {
 
   const onRegister = (data: RegisterForm) => {
     setIsLoading(true);
-    registerMutation.mutate(data);
-    setIsLoading(false);
+    registerMutation.mutate(data, {
+      onSettled: () => setIsLoading(false)
+    });
   };
 
   const onLogin = (data: LoginForm) => {
     setIsLoading(true);
-    loginMutation.mutate(data);
-    setIsLoading(false);
+    loginMutation.mutate(data, {
+      onSettled: () => setIsLoading(false)
+    });
   };
 
   return (
@@ -124,6 +137,14 @@ export default function AuthPage() {
               </div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">IntelliTutorAI</h1>
               <p className="text-gray-600">Your intelligent learning companion</p>
+              
+              {authError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm font-medium">Authentication Error</p>
+                  <p className="text-red-600 text-sm mt-1">{authError}</p>
+                  <p className="text-red-600 text-sm mt-2">Please check your credentials and try again, or create a new account.</p>
+                </div>
+              )}
             </div>
 
             <Tabs defaultValue="login" className="w-full">

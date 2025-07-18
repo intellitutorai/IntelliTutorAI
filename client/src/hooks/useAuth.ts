@@ -1,66 +1,64 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 
-export interface User {
+interface User {
   _id: string;
   username: string;
   email: string;
-  role: 'teacher' | 'student' | 'admin';
+  role: string;
   institution: string;
   profileImage?: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export function useAuth() {
-  const [token, setToken] = useState<string | null>(null);
+  const [, navigate] = useLocation();
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    setToken(storedToken);
-  }, []);
-
-  const { data: user, isLoading, refetch } = useQuery({
+  const { data: user, isLoading, error, refetch } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
+      const token = localStorage.getItem("token");
       if (!token) return null;
-      
-      const response = await fetch("/api/auth/user", {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          setToken(null);
-          return null;
-        }
-        throw new Error("Failed to fetch user");
+
+      try {
+        const response = await apiRequest("GET", "/api/auth/user");
+        const userData = await response.json();
+        localStorage.setItem("user", JSON.stringify(userData));
+        return userData;
+      } catch (error) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        return null;
       }
-      
-      return response.json();
     },
-    enabled: !!token,
-    retry: false,
+    retry: 1,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchOnWindowFocus: true,
   });
+
+  // Auto-retry authentication on mount if we have a token but no user
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token && !user && !isLoading) {
+      refetch();
+    }
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    setToken(null);
-    window.location.href = "/auth";
+    navigate("/auth");
   };
 
   return {
     user,
-    isLoading: isLoading || (!token && !user),
-    isAuthenticated: !!(token && user),
+    isLoading,
+    error,
+    isAuthenticated: !!user,
     logout,
-    refetch
+    refetch,
   };
 }

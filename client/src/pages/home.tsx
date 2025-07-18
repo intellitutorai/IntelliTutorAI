@@ -32,14 +32,6 @@ export default function Home() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate("/auth");
-      return;
-    }
-  }, [user, isLoading, navigate]);
-
   // Redirect to admin if user is admin
   useEffect(() => {
     if (user?.role === 'admin') {
