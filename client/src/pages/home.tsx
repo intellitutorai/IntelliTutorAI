@@ -139,6 +139,17 @@ export default function Home() {
   const handleSendMessage = (content: string) => {
     if (selectedChatId) {
       sendMessageMutation.mutate(content);
+    } else {
+      // Create a new chat first, then send the message
+      createChatMutation.mutate(undefined, {
+        onSuccess: (newChat: Chat) => {
+          setSelectedChatId(newChat._id);
+          // Send the message after chat is created
+          setTimeout(() => {
+            sendMessageMutation.mutate(content);
+          }, 100);
+        }
+      });
     }
   };
 
@@ -221,7 +232,7 @@ export default function Home() {
         {/* Input */}
         <EnhancedChatInput
           onSendMessage={handleSendMessage}
-          disabled={sendMessageMutation.isPending}
+          disabled={sendMessageMutation.isPending || createChatMutation.isPending}
         />
       </div>
     </div>
