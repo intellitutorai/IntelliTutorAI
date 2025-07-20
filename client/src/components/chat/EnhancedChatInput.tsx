@@ -123,7 +123,7 @@ export default function EnhancedChatInput({ onSendMessage, disabled }: EnhancedC
       const end = textarea.selectionEnd;
       const newMessage = message.substring(0, start) + symbol + message.substring(end);
       setMessage(newMessage);
-      
+
       // Set cursor position after inserted symbol
       setTimeout(() => {
         textarea.setSelectionRange(start + symbol.length, start + symbol.length);
@@ -172,7 +172,7 @@ export default function EnhancedChatInput({ onSendMessage, disabled }: EnhancedC
               rows={1}
               disabled={disabled}
             />
-            
+
             {/* Toolbar */}
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
               {/* Equations Picker */}
@@ -206,17 +206,39 @@ export default function EnhancedChatInput({ onSendMessage, disabled }: EnhancedC
               </Popover>
 
               {/* Attachment */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-gray-400 hover:text-blue-500"
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <label htmlFor="file-upload" className="cursor-pointer">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-gray-400 hover:text-blue-500"
+                  disabled={disabled}
+                  asChild
+                >
+                  <span>
+                    <Paperclip className="h-4 w-4" />
+                  </span>
+                </Button>
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                accept=".txt,.pdf,.doc,.docx,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // For now, just show a message about the file
+                    onSendMessage(`[File attached: ${file.name}] Please help me with this file.`);
+                    e.target.value = ''; // Reset input
+                  }
+                }}
                 disabled={disabled}
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
+              />
+            </div>
             </div>
           </div>
-          
+
           <Button
             onClick={handleSend}
             disabled={!message.trim() || disabled}
@@ -227,7 +249,7 @@ export default function EnhancedChatInput({ onSendMessage, disabled }: EnhancedC
             <span className="hidden sm:inline">Send</span>
           </Button>
         </div>
-        
+
         <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
           <span>Press Enter to send, Shift+Enter for new line</span>
           <span>{message.length}/2000</span>

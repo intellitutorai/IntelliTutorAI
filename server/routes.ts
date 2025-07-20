@@ -27,12 +27,12 @@ async function callOpenAI(messages: Array<{role: string, content: string}>) {
   // Try OpenRouter API key first, then fall back to OpenAI
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   const openAIKey = process.env.OPENAI_API_KEY;
-  
+
   // Determine which API to use based on available keys and key format
   let apiUrl = "";
   let apiKey = "";
   let model = "";
-  
+
   if (openRouterKey) {
     apiUrl = "https://openrouter.ai/api/v1/chat/completions";
     apiKey = openRouterKey;
@@ -86,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register', async (req, res) => {
     try {
       const validatedData = registerSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await User.findOne({ 
         $or: [
@@ -94,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { username: validatedData.username }
         ]
       });
-      
+
       if (existingUser) {
         return res.status(400).json({ message: 'User already exists' });
       }
@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const validatedData = loginSchema.parse(req.body);
-      
+
       // Find user by email
       const user = await User.findOne({ email: validatedData.email });
       if (!user) {
@@ -198,11 +198,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         _id: req.params.chatId,
         userId: req.user._id
       });
-      
+
       if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
-      
+
       res.json(chat.messages);
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -216,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         _id: req.params.chatId,
         userId: req.user._id
       });
-      
+
       if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
@@ -226,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: req.body.content,
         role: 'user' as const
       };
-      
+
       chat.messages.push(userMessage);
       await chat.save();
 
@@ -251,9 +251,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           content: aiResponse,
           role: 'assistant' as const
         };
-        
+
         chat.messages.push(aiMessage);
-        
+
         // Update chat title if this is the first user message
         if (chat.messages.length === 2) {
           const title = req.body.content.length > 50 
@@ -261,19 +261,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : req.body.content;
           chat.title = title;
         }
-        
+
         await chat.save();
 
         res.json({ userMessage, aiMessage });
       } catch (aiError) {
         console.error("Error getting AI response:", aiError);
-        
+
         // Add error message
         const errorMessage = {
           content: "I apologize, but I'm having trouble connecting to the AI service right now. Please try again later.",
           role: 'assistant' as const
         };
-        
+
         chat.messages.push(errorMessage);
         await chat.save();
 
@@ -285,18 +285,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/chats/:chatId', auth, async (req: AuthRequest, res) => {
+    try {
+      const { title } = req.body;
+
+      if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+
+      const chat = await Chat.findOneAndUpdate(
+        { _id: req.params.chatId, userId: req.user._id },
+        { title: title.trim(), updatedAt: new Date() },
+        { new: true }
+      );
+
+      if (!chat) {
+        return res.status(404).json({ message: "Chat not found" });
+      }
+
+      res.json(chat);
+    } catch (error) {
+      console.error("Error updating chat:", error);
+      res.status(500).json({ message: "Failed to update chat" });
+    }
+  });
+
   app.delete('/api/chats/:chatId', auth, async (req: AuthRequest, res) => {
     try {
       const chat = await Chat.findOneAndDelete({
         _id: req.params.chatId,
         userId: req.user._id
       });
-      
+
       if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
-      
-      res.json({ success: true });
+
+      res.json({ message: "Chat deleted successfully" });
     } catch (error) {
       console.error("Error deleting chat:", error);
       res.status(500).json({ message: "Failed to delete chat" });
@@ -307,17 +332,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/user/profile', auth, async (req: AuthRequest, res) => {
     try {
       const { username, email, institution, profileImage } = req.body;
-      
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user._id,
         { username, email, institution, profileImage },
         { new: true, runValidators: true }
       );
-      
+
       if (!updatedUser) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
       res.json(updatedUser);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -339,14 +364,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/users/:userId', adminAuth, async (req: AuthRequest, res) => {
     try {
       const user = await User.findByIdAndDelete(req.params.userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
       // Also delete user's chats
       await Chat.deleteMany({ userId: req.params.userId });
-      
+
       res.json({ message: 'User deleted successfully' });
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -359,22 +384,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const users = await User.find({});
       const totalUsers = users.length;
-      
+
       // Calculate basic stats
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      
+
       const activeToday = users.filter(user => 
         user.updatedAt && new Date(user.updatedAt) >= todayStart
       ).length;
-      
+
       const newThisWeek = users.filter(user => 
         user.createdAt && new Date(user.createdAt) >= weekStart
       ).length;
-      
+
       const totalChats = await Chat.countDocuments();
-      
+
       res.json({
         totalUsers,
         activeToday,

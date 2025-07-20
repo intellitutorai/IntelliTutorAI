@@ -104,16 +104,41 @@ export default function Home() {
 
   const deleteChatMutation = useMutation({
     mutationFn: async (chatId: string) => {
-      await apiRequest("DELETE", `/api/chats/${chatId}`);
+      await apiRequest("DELETE", `/api/chats/${chatId}`, null);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       setSelectedChatId(null);
+      toast({
+        title: "Chat deleted",
+        description: "The chat has been deleted successfully.",
+      });
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
         description: "Failed to delete chat",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const renameChatMutation = useMutation({
+    mutationFn: async ({ chatId, title }: { chatId: string; title: string }) => {
+      const response = await apiRequest("PUT", `/api/chats/${chatId}`, { title });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      toast({
+        title: "Chat renamed",
+        description: "The chat has been renamed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to rename chat",
         variant: "destructive",
       });
     },
@@ -149,6 +174,10 @@ export default function Home() {
     deleteChatMutation.mutate(chatId);
   };
 
+  const handleRenameChat = (chatId: string, title: string) => {
+    renameChatMutation.mutate({ chatId, title });
+  };
+
   if (isLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -178,6 +207,7 @@ export default function Home() {
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={handleDeleteChat}
+          onRenameChat={handleRenameChat}
           isCreatingChat={createChatMutation.isPending}
         />
       </div>

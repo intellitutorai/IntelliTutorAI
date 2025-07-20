@@ -1,4 +1,4 @@
-import { Bot, Plus, MessageSquare, MoreVertical, Trash2, ExternalLink, MessageCircle } from "lucide-react";
+import { Bot, Plus, MessageSquare, MoreVertical, Trash2, ExternalLink, MessageCircle, Edit3, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,8 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import ProfileModal from "@/components/profile/ProfileModal";
 import { User } from "@/hooks/useAuth";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 interface Chat {
   _id: string;
@@ -27,6 +29,7 @@ interface EnhancedChatSidebarProps {
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => void;
   isCreatingChat: boolean;
+  onRenameChat: (chatId: string, newTitle: string) => void;
 }
 
 export default function EnhancedChatSidebar({
@@ -37,7 +40,29 @@ export default function EnhancedChatSidebar({
   onNewChat,
   onDeleteChat,
   isCreatingChat,
+  onRenameChat,
 }: EnhancedChatSidebarProps) {
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  const handleStartEdit = (chat: Chat) => {
+    setEditingChatId(chat._id);
+    setEditTitle(chat.title);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingChatId(null);
+    setEditTitle('');
+  };
+
+  const handleSaveEdit = () => {
+    if (editingChatId && editTitle.trim() !== '') {
+      onRenameChat(editingChatId, editTitle);
+      setEditingChatId(null);
+      setEditTitle('');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Header */}
@@ -76,7 +101,7 @@ export default function EnhancedChatSidebar({
             {chats.length}
           </Badge>
         </div>
-        
+
         {chats.length === 0 ? (
           <div className="text-center py-8">
             <MessageSquare className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -95,41 +120,76 @@ export default function EnhancedChatSidebar({
               onClick={() => onSelectChat(chat._id)}
             >
               <div className="flex items-start space-x-3">
-                <MessageSquare className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <MessageCircle className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">
-                    {chat.title}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {chat.updatedAt
-                      ? formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })
-                      : "Just now"}
-                  </p>
+                  {editingChatId === chat._id ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          if (e.key === 'Escape') handleCancelEdit();
+                        }}
+                        className="h-6 text-sm"
+                        autoFocus
+                      />
+                      <div className="flex space-x-1">
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={handleSaveEdit}>
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={handleCancelEdit}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-700 truncate">
+                        {chat.title}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {chat.updatedAt
+                          ? formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })
+                          : "Just now"}
+                      </p>
+                    </>
+                  )}
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteChat(chat._id);
-                      }}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {editingChatId !== chat._id && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEdit(chat);
+                        }}
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteChat(chat._id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           ))

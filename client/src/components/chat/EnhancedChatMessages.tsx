@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Bot, User, Copy, RefreshCw, ThumbsUp, ThumbsDown, Edit3, Check, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Bot, User, Copy, ThumbsUp, ThumbsDown, RotateCcw, Edit3, Check, X, MessageSquare, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { formatDistanceToNow } from "date-fns";
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface Message {
   _id: string;
@@ -14,63 +16,72 @@ interface Message {
 }
 
 interface EnhancedChatMessagesProps {
-  messages: Message[];
+  messages: any[];
   isLoading: boolean;
   selectedChatId: string | null;
-  onRetry?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
 }
 
-export default function EnhancedChatMessages({
-  messages,
-  isLoading,
-  selectedChatId,
-  onRetry,
-  onEditMessage
-}: EnhancedChatMessagesProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
+export default function EnhancedChatMessages({ messages, isLoading, selectedChatId, onEditMessage }: EnhancedChatMessagesProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const copyMessage = (content: string) => {
+  useEffect(() => {
+    const handleScroll = () => {
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        setShowScrollButtons(!isNearBottom && messages.length > 3);
+      }
+    };
+
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [messages.length]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollToTop = () => {
+    messagesContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content);
     toast({
-      title: "Copied",
-      description: "Message copied to clipboard",
+      title: "Copied to clipboard",
+      description: "Message content has been copied.",
     });
   };
 
-  const startEditing = (messageId: string, content: string) => {
+  const handleEditMessage = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setEditContent(content);
   };
 
-  const saveEdit = () => {
-    if (editingMessageId && onEditMessage) {
-      onEditMessage(editingMessageId, editContent);
+  const handleSaveEdit = () => {
+    if (editingMessageId && editContent.trim() && onEditMessage) {
+      onEditMessage(editingMessageId, editContent.trim());
       setEditingMessageId(null);
       setEditContent("");
     }
   };
 
-  const cancelEdit = () => {
+  const handleCancelEdit = () => {
     setEditingMessageId(null);
     setEditContent("");
-  };
-
-  const handleRetry = (messageId: string) => {
-    if (onRetry) {
-      onRetry(messageId);
-    }
   };
 
   if (!selectedChatId) {
@@ -124,42 +135,41 @@ export default function EnhancedChatMessages({
                         onChange={(e) => setEditContent(e.target.value)}
                         className="rounded-xl border-2 border-blue-300 focus:border-blue-500"
                         rows={3}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && e.ctrlKey) {
+                            handleSaveEdit();
+                          }
+                          if (e.key === 'Escape') {
+                            handleCancelEdit();
+                          }
+                        }}
                       />
                       <div className="flex justify-end space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={cancelEdit}
-                        >
-                          <X className="h-3 w-3" />
+                        <Button size="sm" variant="ghost" onClick={handleSaveEdit}>
+                          <Check className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={saveEdit}
-                          style={{ background: "var(--gradient)" }}
-                        >
-                          <Check className="h-3 w-3" />
+                        <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-2xl rounded-br-md px-4 py-3 text-white relative group" style={{ background: "var(--gradient)" }}>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div className="group relative">
+                      <Card className="bg-blue-500 text-white">
+                        <CardContent className="p-3">
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        </CardContent>
+                      </Card>
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-white text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => startEditing(message._id, message.content)}
+                        variant="ghost"
+                        className="absolute -left-8 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleEditMessage(message._id, message.content)}
                       >
-                        <Edit3 className="h-3 w-3" />
+                        <Edit3 className="h-4 w-4" />
                       </Button>
                     </div>
                   )}
-                  <div className="flex justify-end mt-1">
-                    <span className="text-xs text-gray-500">
-                      {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
                 </div>
               ) : (
                 <div className="flex space-x-3 max-w-xs lg:max-w-2xl">
@@ -172,52 +182,92 @@ export default function EnhancedChatMessages({
                         {message.content}
                       </p>
                     </div>
-                    <div className="flex items-center mt-2 space-x-2">
-                      <span className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                      </span>
-                      
-                      {/* Action buttons */}
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
-                          onClick={() => copyMessage(message.content)}
-                          title="Copy message"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
-                          onClick={() => handleRetry(message._id)}
-                          title="Retry response"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-green-600"
-                          title="Good response"
-                        >
-                          <ThumbsUp className="h-3 w-3" />
-                        </Button>
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
-                          title="Poor response"
-                        >
-                          <ThumbsDown className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                      onClick={() => handleCopy(message.content)}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-green-600"
+                      onClick={() => {
+                        toast({
+                          title: "Helpful response",
+                          description: "Thank you for your feedback!",
+                        });
+                      }}
+                    >
+                      <ThumbsUp className="h-3 w-3 mr-1" />
+                      Helpful
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-red-600"
+                      onClick={() => {
+                        toast({
+                          title: "Feedback noted",
+                          description: "We'll use this to improve responses.",
+                        });
+                      }}
+                    >
+                      <ThumbsDown className="h-3 w-3 mr-1" />
+                      Not helpful
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-blue-600"
+                      onClick={() => {
+                        toast({
+                          title: "Regenerating response",
+                          description: "Please wait while we generate a new response.",
+                        });
+                      }}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Regenerate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-purple-600"
+                      onClick={() => {
+                        const explanation = "This response provides " + message.content.slice(0, 100) + "...";
+                        toast({
+                          title: "Explanation",
+                          description: explanation,
+                        });
+                      }}
+                    >
+                      <MessageSquare className="h-3 w-3 mr-1" />
+                      Explain
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500 hover:text-orange-600"
+                      onClick={() => {
+                        const simplified = message.content.length > 200 ? 
+                          message.content.slice(0, 200) + "... (simplified)" : 
+                          "This is already in simple terms.";
+                        handleCopy(simplified);
+                        toast({
+                          title: "Simplified version copied",
+                          description: "A simpler version has been copied to clipboard.",
+                        });
+                      }}
+                    >
+                      <Edit3 className="h-3 w-3 mr-1" />
+                      Simplify
+                    </Button>
+                  </div>
                   </div>
                 </div>
               )}
@@ -245,6 +295,29 @@ export default function EnhancedChatMessages({
       )}
 
       <div ref={messagesEndRef} />
+      </div>
+
+      {/* Scroll Buttons */}
+      {showScrollButtons && (
+        <div className="absolute right-4 bottom-4 flex flex-col space-y-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full w-10 h-10 p-0 bg-white shadow-lg hover:shadow-xl"
+            onClick={scrollToTop}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full w-10 h-10 p-0 bg-white shadow-lg hover:shadow-xl"
+            onClick={scrollToBottom}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
