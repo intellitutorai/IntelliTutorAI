@@ -295,7 +295,6 @@ export default function EnhancedChatMessages({ messages, isLoading, selectedChat
       )}
 
       <div ref={messagesEndRef} />
-      </div>
 
       {/* Scroll Buttons */}
       {showScrollButtons && (
