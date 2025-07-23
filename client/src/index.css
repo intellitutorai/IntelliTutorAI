@@ -94,20 +94,33 @@
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar for chat messages */
+/* Enhanced scrollbar for chat messages */
+.chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(215, 13.8%, 34.9%) hsl(210, 40%, 98%);
+}
+
 .chat-messages::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .chat-messages::-webkit-scrollbar-track {
   background: hsl(210, 40%, 98%);
+  border-radius: 4px;
 }
 
 .chat-messages::-webkit-scrollbar-thumb {
   background: hsl(215, 13.8%, 34.9%);
-  border-radius: 3px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: hsl(215, 16%, 25%);
+}
+
+/* Ensure smooth scrolling performance */
+.chat-messages {
+  overflow-anchor: none;
+  scroll-padding-bottom: 20px;
 }
