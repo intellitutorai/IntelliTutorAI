@@ -8,6 +8,9 @@ import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth-page";
 import Home from "@/pages/home";
 import Admin from "@/pages/admin";
+import IntelliWrite from "@/pages/intelliwrite";
+import AcademicTube from "@/pages/academictube";
+import Quiz from "@/pages/quiz";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -35,6 +38,9 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/intelliwrite" component={IntelliWrite} />
+          <Route path="/academictube" component={AcademicTube} />
+          <Route path="/quiz" component={Quiz} />
           {user?.role === 'admin' && <Route path="/admin" component={Admin} />}
         </>
       )}
