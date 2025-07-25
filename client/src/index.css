@@ -96,27 +96,34 @@
 
 /* Enhanced scrollbar for chat messages */
 .chat-messages {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(215, 13.8%, 34.9%) hsl(210, 40%, 98%);
+  scrollbar-width: auto;
+  scrollbar-color: #3B82F6 #E5E7EB;
 }
 
 .chat-messages::-webkit-scrollbar {
-  width: 8px;
+  width: 12px;
 }
 
 .chat-messages::-webkit-scrollbar-track {
-  background: hsl(210, 40%, 98%);
-  border-radius: 4px;
+  background: #F3F4F6;
+  border-radius: 6px;
+  margin: 4px 0;
 }
 
 .chat-messages::-webkit-scrollbar-thumb {
-  background: hsl(215, 13.8%, 34.9%);
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
+  background: #3B82F6;
+  border-radius: 6px;
+  border: 2px solid #F3F4F6;
+  transition: all 0.2s ease;
 }
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
-  background: hsl(215, 16%, 25%);
+  background: #2563EB;
+  border: 1px solid #F3F4F6;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:active {
+  background: #1D4ED8;
 }
 
 /* Ensure smooth scrolling performance */
