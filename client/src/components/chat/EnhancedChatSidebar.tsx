@@ -1,4 +1,4 @@
-import { Bot, Plus, MessageSquare, MoreVertical, Trash2, ExternalLink, MessageCircle, FileText, Play, Brain, Settings } from "lucide-react";
+import { Bot, Plus, MessageSquare, MoreVertical, Trash2, ExternalLink, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import ProfileModal from "@/components/profile/ProfileModal";
 import { User } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
 
 interface Chat {
   _id: string;
@@ -39,13 +38,6 @@ export default function EnhancedChatSidebar({
   onDeleteChat,
   isCreatingChat,
 }: EnhancedChatSidebarProps) {
-  const [, navigate] = useLocation();
-
-  const navigationItems = [
-    { name: "IntelliWrite", icon: FileText, path: "/intelliwrite", description: "Document creation" },
-    { name: "AcademicTube", icon: Play, path: "/academictube", description: "Educational videos" },
-    { name: "Quiz Hub", icon: Brain, path: "/quiz", description: "Interactive quizzes" },
-  ];
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Header */}
@@ -72,44 +64,6 @@ export default function EnhancedChatSidebar({
           <Plus className="h-4 w-4" />
           <span>New Chat</span>
         </Button>
-      </div>
-
-      {/* Navigation Menu */}
-      <div className="px-4 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Learning Tools
-          </h3>
-        </div>
-        <div className="space-y-1">
-          {navigationItems.map((item) => (
-            <Button
-              key={item.path}
-              variant="ghost"
-              className="w-full justify-start rounded-xl hover:bg-gray-50"
-              onClick={() => navigate(item.path)}
-            >
-              <item.icon className="h-4 w-4 mr-3 text-gray-500" />
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-gray-700">{item.name}</p>
-                <p className="text-xs text-gray-500">{item.description}</p>
-              </div>
-            </Button>
-          ))}
-          {user.role === 'admin' && (
-            <Button
-              variant="ghost"
-              className="w-full justify-start rounded-xl hover:bg-gray-50"
-              onClick={() => navigate('/admin')}
-            >
-              <Settings className="h-4 w-4 mr-3 text-gray-500" />
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-gray-700">Admin Panel</p>
-                <p className="text-xs text-gray-500">Manage users & settings</p>
-              </div>
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* Chat History */}
