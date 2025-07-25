@@ -41,7 +41,7 @@ function Router() {
           <Route path="/intelliwrite" component={IntelliWrite} />
           <Route path="/academictube" component={AcademicTube} />
           <Route path="/quiz" component={Quiz} />
-          {user?.role === 'admin' && <Route path="/admin" component={Admin} />}
+          <Route path="/admin" component={Admin} />
         </>
       )}
       <Route component={NotFound} />
