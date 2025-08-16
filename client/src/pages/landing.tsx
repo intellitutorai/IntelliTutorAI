@@ -153,7 +153,7 @@ export default function Landing() {
                   <Star className="h-5 w-5 text-yellow-500 fill-current" />
                 </div>
                 <p className="text-slate-600 mb-4">"IntelliTutorAI has revolutionized my study routine. The personalized explanations help me understand complex concepts easily."</p>
-                <p className="font-semibold text-slate-800">- Sarah M., Student</p>
+                <p className="font-semibold text-slate-800">- Rwego Edward, Co-founder</p>
               </CardContent>
             </Card>
             <Card>
@@ -166,7 +166,7 @@ export default function Landing() {
                   <Star className="h-5 w-5 text-yellow-500 fill-current" />
                 </div>
                 <p className="text-slate-600 mb-4">"As a teacher, I love how I can track my students' progress and provide targeted support where needed."</p>
-                <p className="font-semibold text-slate-800">- Mr. Johnson, Teacher</p>
+                <p className="font-semibold text-slate-800">- Mr. Bernard, Teacher</p>
               </CardContent>
             </Card>
             <Card>
@@ -179,7 +179,7 @@ export default function Landing() {
                   <Star className="h-5 w-5 text-yellow-500 fill-current" />
                 </div>
                 <p className="text-slate-600 mb-4">"The 24/7 availability means I can get help whenever I need it. Perfect for my busy schedule!"</p>
-                <p className="font-semibold text-slate-800">- Alex K., Student</p>
+                <p className="font-semibold text-slate-800">- Namara Mark, Student</p>
               </CardContent>
             </Card>
           </div>
@@ -207,7 +207,7 @@ export default function Landing() {
       <footer className="bg-white border-t border-slate-200">
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="text-center">
-            <p className="text-slate-600">&copy; 2024 IntelliTutorAI. All rights reserved.</p>
+            <p className="text-slate-600">&copy; 2025 IntelliTutorAI. All rights reserved.</p>
           </div>
         </div>
       </footer>
