@@ -11,7 +11,7 @@
   --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   --transition: all 0.3s ease;
   --padding-mobile: 1rem;
-  
+
   --background: hsl(0, 0%, 100%);
   --foreground: hsl(222, 84%, 4.9%);
   --muted: hsl(210, 40%, 98%);
@@ -130,4 +130,11 @@
 .chat-messages {
   overflow-anchor: none;
   scroll-padding-bottom: 20px;
+}
+
+/* Enforce LTR for contentEditable and its containers */
+[contenteditable], .prose, .card, .card-content {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: normal !important;
 }

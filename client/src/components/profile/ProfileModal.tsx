@@ -82,11 +82,11 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Profile</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           {/* Profile Header */}
           <div className="flex items-center space-x-4">
@@ -140,7 +140,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                 <p className="font-medium">{user.username}</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center">
@@ -152,7 +152,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                 <p className="font-medium">{user.email}</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center">
@@ -164,7 +164,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                 <p className="font-medium">{user.institution}</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center">
@@ -199,7 +199,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                         <p className="text-sm text-red-500">{form.formState.errors.username.message}</p>
                       )}
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
@@ -213,7 +213,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="institution">Institution</Label>
                     <Input
@@ -225,7 +225,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                       <p className="text-sm text-red-500">{form.formState.errors.institution.message}</p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="profileImage">Profile Image URL</Label>
                     <Input
@@ -235,7 +235,7 @@ export default function ProfileModal({ user, children }: ProfileModalProps) {
                       placeholder="https://example.com/avatar.jpg"
                     />
                   </div>
-                  
+
                   <div className="flex space-x-2">
                     <Button 
                       type="submit" 

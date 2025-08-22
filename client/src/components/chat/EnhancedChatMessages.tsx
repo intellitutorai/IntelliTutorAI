@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, User, Copy, RefreshCw, ThumbsUp, ThumbsDown, Edit3, Check, X } from "lucide-react";
+import { Bot, Copy, RefreshCw, ThumbsUp, ThumbsDown, Edit3, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,21 +17,29 @@ interface EnhancedChatMessagesProps {
   messages: Message[];
   isLoading: boolean;
   selectedChatId: string | null;
-  onRetry?: (messageId: string) => void;
-  onEditMessage?: (messageId: string, newContent: string) => void;
+  onEditMessage: (messageId: string, content: string) => void;
+  onSaveEditedMessage: () => void;
+  editingMessageId: string | null;
+  editedMessageContent: string;
+  setEditedMessageContent: (content: string) => void;
+  onRetryMessage: (messageId: string) => void;
+  onFeedback: (messageId: string, feedback: 'like' | 'dislike') => void;
 }
 
 export default function EnhancedChatMessages({
   messages,
   isLoading,
   selectedChatId,
-  onRetry,
-  onEditMessage
+  onEditMessage,
+  onSaveEditedMessage,
+  editingMessageId,
+  editedMessageContent,
+  setEditedMessageContent,
+  onRetryMessage,
+  onFeedback
 }: EnhancedChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,30 +55,6 @@ export default function EnhancedChatMessages({
       title: "Copied",
       description: "Message copied to clipboard",
     });
-  };
-
-  const startEditing = (messageId: string, content: string) => {
-    setEditingMessageId(messageId);
-    setEditContent(content);
-  };
-
-  const saveEdit = () => {
-    if (editingMessageId && onEditMessage) {
-      onEditMessage(editingMessageId, editContent);
-      setEditingMessageId(null);
-      setEditContent("");
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingMessageId(null);
-    setEditContent("");
-  };
-
-  const handleRetry = (messageId: string) => {
-    if (onRetry) {
-      onRetry(messageId);
-    }
   };
 
   if (!selectedChatId) {
@@ -120,8 +104,8 @@ export default function EnhancedChatMessages({
                   {editingMessageId === message._id ? (
                     <div className="space-y-2">
                       <Textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
+                        value={editedMessageContent}
+                        onChange={(e) => setEditedMessageContent(e.target.value)}
                         className="rounded-xl border-2 border-blue-300 focus:border-blue-500"
                         rows={3}
                       />
@@ -129,13 +113,16 @@ export default function EnhancedChatMessages({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={cancelEdit}
+                          onClick={() => {
+                            setEditedMessageContent("");
+                            onEditMessage("", "");
+                          }}
                         >
                           <X className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"
-                          onClick={saveEdit}
+                          onClick={onSaveEditedMessage}
                           style={{ background: "var(--gradient)" }}
                         >
                           <Check className="h-3 w-3" />
@@ -149,7 +136,7 @@ export default function EnhancedChatMessages({
                         variant="ghost"
                         size="sm"
                         className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-white text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => startEditing(message._id, message.content)}
+                        onClick={() => onEditMessage(message._id, message.content)}
                       >
                         <Edit3 className="h-3 w-3" />
                       </Button>
@@ -176,42 +163,39 @@ export default function EnhancedChatMessages({
                       <span className="text-xs text-gray-500">
                         {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                       </span>
-                      
-                      {/* Action buttons */}
                       <div className="flex items-center space-x-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600 transition-transform duration-200 hover:scale-110"
                           onClick={() => copyMessage(message.content)}
                           title="Copy message"
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
-                        
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
-                          onClick={() => handleRetry(message._id)}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600 transition-transform duration-200 hover:scale-110"
+                          onClick={() => onRetryMessage(message._id)}
                           title="Retry response"
                         >
                           <RefreshCw className="h-3 w-3" />
                         </Button>
-                        
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-green-600"
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-green-600 transition-transform duration-200 hover:scale-110"
+                          onClick={() => onFeedback(message._id, 'like')}
                           title="Good response"
                         >
                           <ThumbsUp className="h-3 w-3" />
                         </Button>
-                        
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 transition-transform duration-200 hover:scale-110"
+                          onClick={() => onFeedback(message._id, 'dislike')}
                           title="Poor response"
                         >
                           <ThumbsDown className="h-3 w-3" />
@@ -226,7 +210,6 @@ export default function EnhancedChatMessages({
         </>
       )}
 
-      {/* Typing indicator */}
       {isLoading && (
         <div className="flex justify-start">
           <div className="flex space-x-3">
